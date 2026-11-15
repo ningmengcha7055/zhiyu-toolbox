@@ -37,7 +37,6 @@ from astrbot.api.star import Context, Star, register
 # 不写死 /AstrBot/data，Linux 容器、Windows、任意部署方式都能对上。
 DATA = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 INFO_FILE = os.path.join(DATA, "snowluma_info.json")
-STATUS_FILE = os.path.join(DATA, "status.json")
 DB_FILE = os.path.join(DATA, "data_v4.db")
 CFG_FILE = os.path.join(DATA, "cmd_config.json")
 LOG_FILE = os.path.join(DATA, "logs", "astrbot.log")
@@ -223,24 +222,28 @@ def _plugin_count() -> int:
 
 
 def _status_service() -> str:
-    """宿主状态服务把状态写进挂载目录里的 status.json，直接读文件最稳。
+    """SL 数据同步状态：读 snowluma_info.json 的 synced_at（宿主 cron 每 5 分钟刷新）。
 
-    若文件久未更新，只说「久未更新」，不把里面的旧状态当成当前状态报出来，
-    免得机器明明在线却显示成离线。
+    旧 status.json 是装机残留（写它的辅助服务从未部署），不再作为数据源，
+    免得把「全新安装」的旧状态当成当前状态报出来。
     """
     try:
-        d = _load_json(STATUS_FILE)
+        d = _load_json(INFO_FILE)
         if not d:
-            return "读不到"
-        ts = int(d.get("updated") or 0)
-        if not ts:
-            return "状态文件未更新"
-        age = datetime.now().timestamp() - ts
+            return "SL 信息读不到"
+        stamp = str(d.get("synced_at") or "")[:19]
+        if not stamp:
+            return "SL 同步时间缺失"
+        try:
+            dt = datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return "SL 同步时间异常"
+        age = (datetime.now() - dt).total_seconds()
         if age > 3600:
-            return "状态文件久未更新（辅助服务未接入）"
-        return f"{d.get('state') or '未知'}（{_duration(age)}前更新）"
+            return f"SL 同步滞后（{_duration(age)}前）"
+        return f"SL 同步正常（{_duration(age)}前）"
     except Exception:
-        return "读不到"
+        return "SL 信息读不到"
 
 
 def _recent_errors():
