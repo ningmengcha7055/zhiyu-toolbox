@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light dark" />
+<title>工具箱控制台</title>
+<style>
+  :root {
+    --bg: #f4f6fa; --card: #ffffff; --line: #dfe5ef; --txt: #1f2733;
+    --sub: #5d6675; --brand: #3b82f6; --ok: #16a34a; --bad: #dc2626;
+    --chip: #eef2f9; --hover: #f0f4fb;
+  }
+  /* 跟随系统深色；手动选了浅色时靠 :not 让浅色生效 */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12161d; --card: #1a2029; --line: #2a323d; --txt: #e6eaf2;
+      --sub: #9aa5b5; --brand: #5b9bff; --ok: #34d399; --bad: #f87171;
+      --chip: #222b36; --hover: #212a36;
+    }
+  }
+  /* 手动切换深色（无论系统是什么主题） */
+  html[data-theme="dark"] {
+    --bg: #12161d; --card: #1a2029; --line: #2a323d; --txt: #e6eaf2;
+    --sub: #9aa5b5; --brand: #5b9bff; --ok: #34d399; --bad: #f87171;
+    --chip: #222b36; --hover: #212a36;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 18px; background: var(--bg); color: var(--txt);
+         font: 14px/1.6 "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  .badge { font-size: 12px; background: var(--chip); border: 1px solid var(--line);
+           border-radius: 999px; padding: 1px 10px; color: var(--sub); }
+  .spacer { flex: 1; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--card); color: var(--txt); padding: 6px 14px; }
+  button:hover { background: var(--hover); }
+  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+          padding: 14px 16px; margin-bottom: 14px; }
+  .card h2 { font-size: 16px; margin: 0 0 10px; color: var(--txt); font-weight: 700; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .stat { background: var(--chip); border-radius: 10px; padding: 8px 12px; }
+  .stat .k { font-size: 12px; color: var(--sub); }
+  .stat .v { font-size: 15px; font-weight: 600; margin-top: 2px; word-break: break-all; }
+  #stats .stat.model-wide { grid-column: 2 / -1; width: fit-content; max-width: 100%; min-width: 150px; }
+  #stats .stat.model-wide .v { word-break: normal; overflow-wrap: break-word; }
+  .gate-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .gate-state { font-weight: 600; }
+  .gate-state.on { color: var(--ok); }
+  .gate-state.off { color: var(--bad); }
+  fieldset { border: 1px solid var(--line); border-radius: 10px; margin: 0 0 12px; padding: 10px 14px 14px; }
+  legend { font-size: 14px; font-weight: 700; color: var(--txt); padding: 0 6px; }
+  .item { margin: 10px 0; padding: 9px 11px; border: 1px solid var(--line);
+          border-left: 3px solid var(--brand); border-radius: 8px; background: var(--chip); }
+  .item label.t { display: block; font-size: 14px; font-weight: 700; color: var(--txt); margin-bottom: 3px; }
+  .item .hint { font-size: 12px; line-height: 1.55; color: var(--sub); margin-bottom: 7px; }
+  input[type=text], input[type=number], textarea, select {
+    width: 100%; font: inherit; color: var(--txt); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+  textarea { min-height: 58px; resize: vertical; }
+  .switch { display: flex; align-items: center; gap: 8px; }
+  .switch input { width: 18px; height: 18px; accent-color: var(--brand); }
+  .actions { display: flex; gap: 10px; align-items: center; }
+  #toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+           background: var(--txt); color: var(--bg); border-radius: 8px;
+           padding: 8px 18px; opacity: 0; pointer-events: none; transition: opacity .25s; }
+  #toast.show { opacity: .95; }
+  #toast.err { background: var(--bad); color: #fff; }
+  .muted { color: var(--sub); font-size: 12px; }
+  .diag { font: 12px/1.5 monospace; background: var(--chip); border: 1px dashed var(--line);
+          border-radius: 8px; padding: 6px 10px; margin-bottom: 12px; color: var(--sub);
+          word-break: break-all; display: none; }
+  .diag.show { display: block; }
+  .diag.bad { color: var(--bad); border-color: var(--bad); }
+  details.card > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px;
+                           padding: 2px 0 10px; border-bottom: 1px solid var(--line); }
+  details.card[open] > summary { margin-bottom: 12px; }
+  details.card > summary:hover { color: var(--brand); }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary::before { content: "\25B8"; color: var(--brand); font-size: 18px;
+                                   display: inline-block; transition: transform .15s; }
+  details.card[open] > summary::before { transform: rotate(90deg); }
+  details.card > summary h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--txt); letter-spacing: .3px; }
+  .sum-note { font-size: 12px; color: var(--sub); font-weight: 400; }
+  .sub { font-size: 14px; font-weight: 700; color: var(--txt); margin: 18px 0 9px;
+         padding-left: 10px; border-left: 4px solid var(--brand); }
+  .cfg { border: 1px solid var(--line); border-radius: 10px; margin: 0 0 10px; padding: 6px 14px; }
+  .cfg-title { font-size: 15px; font-weight: 700; color: var(--txt); padding: 6px 0; }
+  /* 大折叠卡片展开后，每个小功能一张独立小卡片 */
+  .mini-card { border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+               padding: 12px 14px 14px; margin: 0 0 12px; }
+  .mini-card:last-child { margin-bottom: 0; }
+  .mini-title { display: flex; align-items: center; gap: 8px; margin: 0 0 4px;
+                font-size: 15px; font-weight: 700; color: var(--txt); }
+  .mini-title .no { display: inline-flex; align-items: center; justify-content: center;
+                    width: 22px; height: 22px; border-radius: 6px; font-size: 12px;
+                    background: var(--brand); color: #fff; flex: none; }
+  .mini-hint { margin: 0 0 10px; font-size: 12px; line-height: 1.55; color: var(--sub); }
+  /* 每张小卡片统一位置、统一款式的开关 */
+  .toggle-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+                padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px;
+                background: var(--chip); margin: 0 0 12px; }
+  .tgl { position: relative; width: 46px; height: 26px; flex: none; }
+  .tgl input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+               opacity: 0; cursor: pointer; z-index: 2; }
+  .tgl .track { position: absolute; inset: 0; border-radius: 999px; background: var(--line); }
+  .tgl .track::after { content: ""; position: absolute; top: 3px; left: 3px;
+                       width: 20px; height: 20px; border-radius: 50%; background: #fff;
+                       transition: transform .18s; }
+  .tgl input:checked + .track { background: var(--brand); }
+  .tgl input:checked + .track::after { transform: translateX(20px); }
+  .toggle-text { font-size: 13px; font-weight: 600; color: var(--txt); }
+  .toggle-text.off { color: var(--sub); }
+  .prob-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .prob-row input[type=number] { width: 110px; }
+  .switch-inline { display: flex; align-items: center; gap: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>工具箱控制台</h1>
+    <span class="badge" id="ver">v--</span>
+    <span class="spacer"></span>
+    <button id="btn-theme" type="button">切换主题</button>
+    <button id="btn-refresh" type="button">刷新</button>
+  </header>
+
+  <div class="diag" id="diag"></div>
+
+  <details class="card" open>
+    <summary><h2>实时状态</h2><span class="sum-note">机器人当前运行情况</span></summary>
+    <div class="grid" id="stats">加载中…</div>
+    <p class="muted" style="margin:8px 0 0">数据与本机「查状态」卡片同源。</p>
+  </details>
+
+  <details class="card" open>
+    <summary><h2>群聊总闸</h2><span class="sum-note" id="gate-sum">--</span></summary>
+
+    <section class="mini-card">
+      <div class="mini-title"><span class="no">1</span>群聊开关（总开关）</div>
+      <p class="mini-hint">一键让机器人在所有群静默，或恢复发言；不影响私聊。</p>
+      <div class="toggle-row">
+        <label class="tgl"><input type="checkbox" data-toggle="gate"><span class="track"></span></label>
+        <span class="toggle-text">允许群聊</span>
+        <span class="gate-state on" id="gate-state">读取中…</span>
+      </div>
+    </section>
+
+    <section class="mini-card">
+      <div class="mini-title"><span class="no">2</span>群聊每分钟限制</div>
+      <p class="mini-hint">控制一段时间内最多插话几条，防止刷屏；被@的回复始终放行。</p>
+      <div class="toggle-row">
+        <label class="tgl"><input type="checkbox" data-toggle="send_rate_enabled"><span class="track"></span></label>
+        <span class="toggle-text" data-state="send_rate_enabled">--</span>
+      </div>
+      <div id="gate-rate"></div>
+    </section>
+
+    <section class="mini-card">
+      <div class="mini-title"><span class="no">3</span>群聊插话间隔</div>
+      <p class="mini-hint">同一个群两次插话之间随机等待，让节奏更自然；被@的回复不受限。</p>
+      <div class="toggle-row">
+        <label class="tgl"><input type="checkbox" data-toggle="group_gap_enabled"><span class="track"></span></label>
+        <span class="toggle-text" data-state="group_gap_enabled">--</span>
+      </div>
+      <div id="gate-gap"></div>
+    </section>
+
+    <section class="mini-card">
+      <div class="mini-title"><span class="no">4</span>群聊判断接话（模型判定）</div>
+      <p class="mini-hint">先由概率海选挑中，再让模型判断值不值得接；关掉判定就是「海选挑中直接回」。</p>
+      <div class="toggle-row">
+        <label class="tgl"><input type="checkbox" data-toggle="gate3_enabled"><span class="track"></span></label>
+        <span class="toggle-text" data-state="gate3_enabled">--</span>
+        <span>当前裁判模型：<b id="gate3-cur">--</b></span>
+      </div>
+      <div class="item" style="margin-top:10px">
+        <div class="hint">改完点「保存裁判模型」立即生效，无需重启。</div>
+        <select id="gate3-model"><option value="">加载中…</option></select>
+      </div>
+      <div class="actions" style="margin-top:10px">
+        <button id="btn-gate3-save" type="button" class="primary">保存裁判模型</button>
+      </div>
+    </section>
+
+    <section class="mini-card">
+      <div class="mini-title"><span class="no">5</span>概率海选</div>
+      <p class="mini-hint">按概率随机决定要不要主动接话；填 1 = 每句都接，填 0 = 不主动接。这组设置读写主动陪伴插件。</p>
+      <div class="toggle-row">
+        <label class="tgl"><input type="checkbox" data-toggle="proactive_reply_enabled"><span class="track"></span></label>
+        <span class="toggle-text" data-state="proactive_reply_enabled">--</span>
+      </div>
+      <div class="item">
+        <label class="t">主动回复概率（0 ~ 1，可自己填）</label>
+        <div class="hint">当前值来自主动陪伴插件；改完点保存立即生效。被@的回复不受概率限制。</div>
+        <div class="prob-row">
+          <input type="number" id="prob-input" min="0" max="1" step="0.05" value="0.35">
+          <button id="btn-prob-save" type="button" class="primary">保存概率</button>
+        </div>
+      </div>
+    </section>
+  </details>
+
+  <details class="card" open>
+    <summary><h2>通用设置</h2><span class="sum-note">3 组 19 项 · 改完点保存，立即生效并落盘</span></summary>
+    <div id="form"></div>
+    <div class="actions">
+      <button id="btn-save" type="button" class="primary">保存配置</button>
+      <button id="btn-reset" type="button">放弃修改（重新读取）</button>
+    </div>
+  </details>
+</div>
+<div id="toast"></div>
+
+<script>
+(function () {
+  var state = { config: {}, snapshot: {}, gateOff: false, version: "" };
+  var bridge = null;
+
+  var GROUPS = [
+    { name: "通用", hint: "谁能用管理工具、以及群里能不能用。", items: [
+      { k: "admin_ids", t: "longtext", label: "管理员 QQ 号", hint: "多个用英文逗号隔开；留空自动跟随主配置（推荐）。" },
+      { k: "allow_group", t: "bool", label: "允许在群里使用管理工具", hint: "默认关：只有私聊能用；打开后群里也能用，结果全群可见。" }
+    ]},
+    { name: "状态查询", hint: "查运行状态时，结果用卡片还是让知喻自己说。", items: [
+      { k: "delivery", t: "select", options: [["card", "直接发状态卡片（推荐）"], ["model", "交给知喻用自己的话说"]],
+        label: "查询结果怎么给", hint: "卡片准确不耗字数；交给知喻说更自然但可能漏数字。" }
+    ]},
+    { name: "发言清洗", hint: "发送前最后一道处理：删括号动作、压行数、去重复句等。", items: [
+      { k: "clean_enabled", t: "bool", label: "清洗总开关", hint: "发送前最后一道处理；关掉就完全不清洗。" },
+      { k: "clean_scope", t: "select", options: [["all", "群聊和私聊都清洗（推荐）"], ["group", "只清洗群聊"], ["private", "只清洗私聊"]],
+        label: "作用范围", hint: "只影响文本清洗，不影响频率限制。" },
+      { k: "clean_block_phrases", t: "longtext", label: "整条不发的话", hint: "英文逗号隔开；整条只是这些占位时不发送。" },
+      { k: "clean_bracket_keywords", t: "longtext", label: "要删的括号动作词", hint: "英文逗号隔开；括号里含这些词就删整段括号。" },
+      { k: "clean_strip_all_brackets", t: "bool", label: "一律删掉所有括号内容", hint: "默认只删词表命中的；打开后括号里写什么都删。" },
+      { k: "clean_strip_unclosed_brackets", t: "bool", label: "删掉没写完的半截括号", hint: "专治「(笑死」这类只有左括号的残片。" },
+      { k: "clean_strip_markup_tags", t: "bool", label: "删掉表情包分类标签", hint: "清理 &&see 这类内部标签。" },
+      { k: "clean_dedupe_seconds", t: "int", label: "多少秒内不重复同一句", hint: "0 = 不去重。" },
+      { k: "clean_max_lines", t: "int", label: "一条最多几行", hint: "0 = 不限行数。" },
+      { k: "clean_wave_max", t: "int", label: "一条最多几个波浪号", hint: "0 = 波浪号全删。" },
+      { k: "clean_min_chars", t: "int", label: "短于几个字就不发", hint: "0 = 不启用；拦极短敷衍可填 2~3，谨慎调大。" },
+      { k: "clean_max_chars", t: "int", label: "一条最多几个字", hint: "硬上限，超出优先按完整句子截断；0 = 不限。" },
+      { k: "clean_custom_rules", t: "longtext", label: "自定义替换规则", hint: "格式：要找的词=>替换成什么；多条用英文分号 ; 隔开；替换留空就是删除。" },
+      { k: "clean_extra_strip_words", t: "longtext", label: "额外要删的词/标签", hint: "自己加的清洗词：这些词或标记会直接从回复里删掉；可填普通词，也可填 <标签> 这类标记。英文逗号或换行分隔。" },
+      { k: "clean_skip_prefixes", t: "longtext", label: "这些开头不清洗", hint: "英文逗号隔开；保护状态卡等结构化消息的排版。" },
+      { k: "clean_verbose_log", t: "bool", label: "日志记录每次清洗动作", hint: "排查「到底清了什么」时打开，平时关着避免刷日志。" }
+    ]}
+  ];
+
+  var RATE_ITEMS = [
+    { k: "send_rate_window", t: "int", label: "窗口秒数", hint: "所有群+私聊插话共享的滑动窗口。" },
+    { k: "send_rate_max", t: "int", label: "窗口内最多几条", hint: "超出直接丢弃；被@回复不计数永远放行。也可用口令「群聊上限N」改。" }
+  ];
+  var GAP_ITEMS = [
+    { k: "group_gap_min_seconds", t: "int", label: "单群最小间隔（秒）", hint: "与上限组成随机区间；0=关闭单群间隔。" },
+    { k: "group_gap_max_seconds", t: "int", label: "单群最大间隔（秒）", hint: "填小于下限会自动取下限。也可用口令「聊天间隔A-B」改。" }
+  ];
+
+  var ENT = { "&": "&", "<": "<", ">": ">", '"': "", "'": "'" };
+  function diag(msg, bad) {
+    var el = document.getElementById("diag");
+    if (!msg) { el.className = "diag"; el.textContent = ""; return; }
+    el.className = "diag show" + (bad ? " bad" : "");
+    el.textContent = "[诊断] " + msg;
+  }
+  function toast(msg, err) {
+    var el = document.getElementById("toast");
+    el.textContent = msg;
+    el.className = "show" + (err ? " err" : "");
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.className = ""; }, 4000);
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      if (c === "&") return "&" + "amp;";
+      if (c === "<") return "&" + "lt;";
+      if (c === ">") return "&" + "gt;";
+      if (c === '"') return "&" + "quot;";
+      return "&" + "#39;";
+    });
+  }
+  function fmtInt(n) { return Number(n || 0).toLocaleString("en-US"); }
+
+  // 以下全是代码字面量：标签名、class 名、状态词、连接符、说明词、兜底文案。
+  // 后端数据一律不出现在这里，也不参与标签/属性/class 的拼接。
+  var CELL_SUB_L = '<span class="sub">', CELL_SUB_R = '</span>';
+  var CELL_MUT_L = '<span class="muted">', CELL_MUT_R = '</span>';
+  var CELL_T_RETRY  = ' · 刷新页面后重试';
+  var CELL_T_NODATA = '暂未获取到模型';
+
+  // 主文案由后端 model_display.label 统一提供（就是完整模型名），前端只用 status 选排版模板。
+  function modelCellHtml(md) {
+    if (!md || typeof md.label !== "string" || !md.label || !md.status) {
+      return CELL_T_NODATA + CELL_MUT_L + CELL_T_RETRY + CELL_MUT_R;
+    }
+    var labelTxt = esc(md.label);
+    var st = md.status;
+    // 有模型就直接显示完整模型名，与「当前裁判模型」那一行一致，不做别名替换
+    if (st === "hit" || st === "unregistered") return labelTxt;
+    if (st === "read_fail") return labelTxt + CELL_MUT_L + CELL_T_RETRY + CELL_MUT_R;
+    return CELL_SUB_L + labelTxt + CELL_SUB_R;
+  }
+
+  function currentOptionText(label) {
+    return "当前使用模型（跟随主对话：" + (label || CELL_T_NODATA) + "）";
+  }
+
+  function renderStats() {
+    var s = state.snapshot || {};
+    var st = s.stats || {};
+    var md = s.model_display;
+    var cells = [
+      ["AstrBot 版本", s.framework || "--"],
+      ["AS 运行时长", s.astrbot_uptime || "--"],
+      ["系统运行", s.system_uptime || "--"],
+      ["SL 进程", s.qq_uptime_session || "--"],
+      ["插件数", s.plugins != null ? s.plugins : "--"],
+      ["今日调用", fmtInt(st.calls)],
+      ["今日 tokens", fmtInt(st.total)],
+      ["缓存命中率", (Number(st.hit_rate) || 0).toFixed(1) + "%"],
+      ["RPM", (Number(st.rpm) || 0).toFixed(1)],
+      ["今日错误", s.errors != null ? s.errors : "--"],
+      ["群聊总闸", state.gateOff ? "已关闭（静默）" : "开启中"],
+      ["当前判断模型", "", true]
+    ];
+    var html = "";
+    cells.forEach(function (c) {
+      var v = c[2] ? modelCellHtml(md) : esc(c[1]);
+      var cls = c[2] ? "stat model-wide" : "stat";
+      html += '<div class="' + cls + '"><div class="k">' + esc(c[0]) + '</div><div class="v">' + v + "</div></div>";
+    });
+    document.getElementById("stats").innerHTML = html;
+    var gs = document.getElementById("gate-state");
+    gs.textContent = state.gateOff ? "已关闭（所有群静默）" : "开启中（群聊正常）";
+    gs.className = "gate-state " + (state.gateOff ? "off" : "on");
+    var gsum = document.getElementById("gate-sum");
+    if (gsum) gsum.textContent = state.gateOff ? "已关闭" : "开启中";
+  }
+
+  function controlFor(it) {
+    var v = state.config[it.k];
+    if (it.t === "bool") {
+      return '<div class="switch-inline"><label class="tgl"><input type="checkbox" data-k="' + it.k + '" data-t="bool"' + (v ? " checked" : "") + '><span class="track"></span></label><span class="muted">' + (v ? "开" : "关") + "</span></div>";
+    }
+    if (it.t === "int") {
+      return '<input type="number" data-k="' + it.k + '" data-t="int" value="' + esc(v == null ? 0 : v) + '">';
+    }
+    if (it.t === "select") {
+      var h = '<select data-k="' + it.k + '" data-t="str">';
+      it.options.forEach(function (o) {
+        h += '<option value="' + esc(o[0]) + '"' + (v === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>";
+      });
+      return h + "</select>";
+    }
+    if (it.t === "longtext") {
+      return '<textarea data-k="' + it.k + '" data-t="str">' + esc(v == null ? "" : v) + "</textarea>";
+    }
+    return '<input type="text" data-k="' + it.k + '" data-t="str" value="' + esc(v == null ? "" : v) + '">';
+  }
+
+  function renderForm() {
+    var html = "";
+    GROUPS.forEach(function (g) {
+      html += '<section class="mini-card"><div class="mini-title">' + esc(g.name) + "</div>" +
+              '<p class="mini-hint">' + esc(g.hint || "") + "</p>";
+      g.items.forEach(function (it) {
+        html += '<div class="item"><label class="t">' + esc(it.label) + "</label>" +
+                '<div class="hint">' + esc(it.hint || "") + "</div>" + controlFor(it) + "</div>";
+      });
+      html += "</section>";
+    });
+    document.getElementById("form").innerHTML = html;
+  }
+
+  function renderItems(containerId, items) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    var html = "";
+    items.forEach(function (it) {
+      html += '<div class="item"><label class="t">' + esc(it.label) + "</label>" +
+              '<div class="hint">' + esc(it.hint || "") + "</div>" + controlFor(it) + "</div>";
+    });
+    el.innerHTML = html;
+  }
+
+  function collectForm() {
+    var out = {};
+    var nodes = document.querySelectorAll("[data-k]");
+    nodes.forEach(function (n) {
+      var k = n.getAttribute("data-k"), t = n.getAttribute("data-t");
+      if (t === "bool") out[k] = !!n.checked;
+      else if (t === "int") out[k] = parseInt(n.value, 10) || 0;
+      else out[k] = String(n.value == null ? "" : n.value);
+    });
+    return out;
+  }
+
+  function applyData(d) {
+    state.version = d.version || state.version;
+    state.snapshot = d.snapshot || {};
+    state.config = d.config || {};
+    state.gateOff = !!d.gate_off;
+    state.gate3 = d.gate3 || {};
+    state.proactive = d.proactive || {};
+    state.models = d.models || [];
+    document.getElementById("ver").textContent = "v" + (state.version || "--");
+    renderStats();
+    renderForm();
+    renderItems("gate-rate", RATE_ITEMS);
+    renderItems("gate-gap", GAP_ITEMS);
+    renderGate3();
+    renderToggles();
+  }
+
+  function renderGate3() {
+    var g = state.gate3 || {};
+    var en = document.getElementById("gate3-enabled");
+    var cur = document.getElementById("gate3-cur");
+    if (en) { en.textContent = g.enabled ? "开" : "关"; en.style.color = g.enabled ? "var(--ok)" : "var(--sub)"; }
+    if (cur) cur.textContent = g.provider_display || (g.provider_id ? g.provider_id : "未选择（不判定，海选挑中直接回）");
+    var g3sum = document.getElementById("gate3-sum");
+    if (g3sum) g3sum.textContent = g.provider_display || (g.provider_id ? g.provider_id : "未选择（不判定）");
+    var sel = document.getElementById("gate3-model");
+    if (!sel) return;
+    var curVal = g.provider_id || "";
+    var models = state.models || [];
+    var curLabel = g.current_model_label || CELL_T_NODATA;
+    var opts = ['<option value="">不选择（不判定）</option>',
+      '<option value="@current"' + (curVal === "@current" ? " selected" : "") + '>' + esc(currentOptionText(curLabel)) + '</option>'];
+    models.forEach(function (m) {
+      opts.push('<option value="' + esc(m.id) + '"' + (m.id === curVal ? " selected" : "") + ">" + esc(m.id) + "</option>");
+    });
+    if (curVal && curVal !== "@current" && !models.some(function (m) { return m.id === curVal; })) {
+      opts.push('<option value="' + esc(curVal) + '" selected>' + esc(curVal) + "（当前）</option>");
+    }
+    sel.innerHTML = opts.join("");
+  }
+
+  async function saveGate3() {
+    var sel = document.getElementById("gate3-model");
+    var btn = document.getElementById("btn-gate3-save");
+    if (!sel || !btn) return;
+    btn.disabled = true;
+    try {
+      await bridge.apiPost("console", { action: "save_gate3", provider_id: sel.value });
+      toast(sel.value ? "裁判模型已设为 " + sel.value : "已留空：第三关不判定，海选挑中直接回");
+      await refresh();
+    } catch (e) {
+      toast("保存失败：" + ((e && e.message) || e), true);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function refresh() {
+    try {
+      var d = await bridge.apiGet("console");
+      diag("");
+      applyData(d);
+    } catch (e) {
+      var m = (e && e.message) ? e.message : String(e);
+      diag("apiGet(console) 失败: " + m, true);
+      toast("读取失败：" + m, true);
+    }
+  }
+
+  async function refreshModelOnly() {
+    try {
+      var d = await bridge.apiGet("console");
+      if (!d || typeof d !== "object") return;
+      var snap = d.snapshot || {};
+      var md = snap.model_display;
+      var g = d.gate3 || {};
+
+      var cell = null;
+      var box = document.getElementById("stats");
+      if (box) {
+        var stats = box.querySelectorAll(".stat");
+        for (var i = 0; i < stats.length; i++) {
+          var k = stats[i].querySelector(".k");
+          if (k && k.textContent === "当前判断模型") { cell = stats[i].querySelector(".v"); break; }
+        }
+      }
+      if (cell) cell.innerHTML = modelCellHtml(md);
+
+      if (typeof g.provider_display === "string") {
+        var cur = document.getElementById("gate3-cur");
+        var g3sum = document.getElementById("gate3-sum");
+        if (cur) cur.textContent = g.provider_display || (g.provider_id ? g.provider_id : "未选择（不判定，海选挑中直接回）");
+        if (g3sum) g3sum.textContent = g.provider_display || (g.provider_id ? g.provider_id : "未选择（不判定）");
+      }
+
+      var label = g.current_model_label || CELL_T_NODATA;
+      var sel = document.getElementById("gate3-model");
+      if (sel) {
+        var opt = sel.querySelector('option[value="@current"]');
+        if (opt) opt.textContent = currentOptionText(label);
+      }
+
+      state.snapshot = state.snapshot || {};
+      state.snapshot.model_display = md;
+      state.gate3 = state.gate3 || {};
+      if (typeof g.current_model_label === "string") state.gate3.current_model_label = g.current_model_label;
+      if (typeof g.provider_display === "string") state.gate3.provider_display = g.provider_display;
+    } catch (e) {
+      /* 失败静默：不重试、不提示、保留上次值 */
+    }
+  }
+
+  function bindAutoRefresh() {
+    var last = 0, everHidden = false;
+    function maybe() {
+      if (document.hidden || !everHidden) return;
+      var now = Date.now();
+      if (now - last < 2000) return;
+      last = now;
+      refreshModelOnly();
+    }
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) { everHidden = true; return; }
+      maybe();
+    });
+    window.addEventListener("focus", maybe);
+  }
+
+  // 五张小卡片共用同款开关：切换立即写回对应配置，不依赖「保存配置」按钮。
+  var TOGGLE_NAMES = {
+    "gate": "群聊总闸",
+    "send_rate_enabled": "每分钟条数限制",
+    "group_gap_enabled": "单群插话间隔",
+    "gate3_enabled": "模型判定",
+    "proactive_reply_enabled": "概率海选"
+  };
+  function toggleValue(key) {
+    if (key === "gate") return !state.gateOff;
+    if (key === "send_rate_enabled" || key === "group_gap_enabled") return !!state.config[key];
+    if (key === "gate3_enabled") return !!(state.gate3 || {}).enabled;
+    if (key === "proactive_reply_enabled") return !!(state.proactive || {}).enabled;
+    return false;
+  }
+  function setToggleText(key, val) {
+    // 同一开关在两处卡片都有文字，全部一起更新
+    var els = document.querySelectorAll("[data-state=" + JSON.stringify(key) + "]");
+    els.forEach(function (el) {
+      el.textContent = val ? "已开启" : "已关闭";
+      el.className = "toggle-text" + (val ? "" : " off");
+    });
+  }
+  function renderToggles() {
+    var nodes = document.querySelectorAll("[data-toggle]");
+    nodes.forEach(function (n) {
+      var key = n.getAttribute("data-toggle");
+      var val = toggleValue(key);
+      n.checked = val;
+      setToggleText(key, val);
+    });
+    var pi = document.getElementById("prob-input");
+    if (pi && document.activeElement !== pi) {
+      var p = (state.proactive || {}).probability;
+      pi.value = String(p == null ? 0.35 : p);
+    }
+  }
+  async function onToggle(ev) {
+    var n = ev.target;
+    if (!n || !n.getAttribute || !n.getAttribute("data-toggle")) return;
+    var key = n.getAttribute("data-toggle");
+    var val = !!n.checked;
+    n.disabled = true;
+    try {
+      await bridge.apiPost("console", { action: "toggle", key: key, value: val });
+      if (key === "gate") state.gateOff = !val;
+      else if (key === "send_rate_enabled" || key === "group_gap_enabled") state.config[key] = val;
+      else if (key === "gate3_enabled") { state.gate3 = state.gate3 || {}; state.gate3.enabled = val; }
+      else if (key === "proactive_reply_enabled") { state.proactive = state.proactive || {}; state.proactive.enabled = val; }
+      renderToggles();
+      if (key === "gate") {
+        var gs = document.getElementById("gate-state");
+        if (gs) {
+          gs.textContent = val ? "开启中（群聊正常）" : "已关闭（所有群静默）";
+          gs.className = "gate-state " + (val ? "on" : "off");
+        }
+      }
+      toast(TOGGLE_NAMES[key] + (val ? "已开启" : "已关闭"));
+    } catch (e) {
+      n.checked = !val;
+      renderToggles();
+      toast("保存失败：" + ((e && e.message) || e), true);
+    } finally {
+      n.disabled = false;
+    }
+  }
+  async function saveProbability() {
+    var pi = document.getElementById("prob-input");
+    if (!pi) return;
+    var v = parseFloat(pi.value);
+    if (isNaN(v) || v < 0 || v > 1) { toast("概率请填 0~1 之间的数字", true); return; }
+    var btn = document.getElementById("btn-prob-save");
+    if (btn) btn.disabled = true;
+    try {
+      await bridge.apiPost("console", { action: "save_probability", value: v });
+      state.proactive = state.proactive || {};
+      state.proactive.probability = v;
+      toast("主动回复概率已设为 " + v);
+    } catch (e) {
+      toast("保存失败：" + ((e && e.message) || e), true);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  // 主题：默认跟随系统，可手动切换；选择记在浏览器本地，刷新后仍保留。
+  var THEME_KEY = "zhiyu_console_theme", themeBound = false;
+  function currentDark() {
+    var t = document.documentElement.getAttribute("data-theme");
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+  function applyTheme(t) {
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+    else document.documentElement.removeAttribute("data-theme");
+    var b = document.getElementById("btn-theme");
+    if (b) b.textContent = currentDark() ? "切换到浅色" : "切换到深色";
+  }
+  function bindTheme() {
+    if (themeBound) return;
+    themeBound = true;
+    var saved = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch (e) {}
+    applyTheme(saved);
+    var b = document.getElementById("btn-theme");
+    if (b) b.addEventListener("click", function () {
+      var next = currentDark() ? "light" : "dark";
+      try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+      applyTheme(next);
+    });
+    // 勾选开关时，旁边的「开/关」文字立即跟着变（滑动开关结构）
+    document.addEventListener("change", function (ev) {
+      var n = ev.target;
+      if (n && n.getAttribute && n.getAttribute("data-t") === "bool") {
+        var box = n.closest ? n.closest(".switch-inline") : null;
+        var s = box && box.querySelector(".muted");
+        if (s) s.textContent = n.checked ? "开" : "关";
+      }
+    });
+  }
+
+  async function save() {
+    var btn = document.getElementById("btn-save");
+    btn.disabled = true;
+    try {
+      await bridge.apiPost("console", { action: "save_config", config: collectForm() });
+      toast("配置已保存并生效");
+      await refresh();
+    } catch (e) {
+      toast("保存失败：" + ((e && e.message) || e), true);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function setGate(off) {
+    try {
+      await bridge.apiPost("console", { action: "gate", off: off });
+      toast(off ? "群聊总闸已关闭，所有群静默" : "群聊总闸已开启，恢复群聊");
+      await refresh();
+    } catch (e) {
+      toast("操作失败：" + ((e && e.message) || e), true);
+    }
+  }
+
+  function bind() {
+    document.getElementById("btn-refresh").addEventListener("click", refresh);
+    document.getElementById("btn-save").addEventListener("click", save);
+    document.getElementById("btn-reset").addEventListener("click", refresh);
+    var g3btn = document.getElementById("btn-gate3-save");
+    if (g3btn) g3btn.addEventListener("click", saveGate3);
+    var pbtn = document.getElementById("btn-prob-save");
+    if (pbtn) pbtn.addEventListener("click", saveProbability);
+    document.addEventListener("change", onToggle);
+    bindAutoRefresh();
+    bindTheme();
+  }
+
+  function findSdkUrl() {
+    var tags = document.querySelectorAll("script[src]");
+    for (var i = 0; i < tags.length; i++) {
+      if (tags[i].src.indexOf("bridge-sdk") !== -1) return tags[i].src;
+    }
+    return null;
+  }
+
+  function loadScript(url) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = url;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error("bridge-sdk 脚本加载失败（网络/权限/403）")); };
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ensureBridge() {
+    if (window.AstrBotPluginView || window.AstrBotPluginPage) {
+      bridge = window.AstrBotPluginView || window.AstrBotPluginPage;
+      return;
+    }
+    var url = findSdkUrl();
+    if (!url) throw new Error("页面上没有 bridge-sdk 标签，框架可能未注入桥接脚本");
+    var errs = [];
+    function onErr(e) { errs.push(String((e && e.message) || e)); }
+    window.addEventListener("error", onErr);
+    try {
+      await loadScript(url);
+    } finally {
+      window.removeEventListener("error", onErr);
+    }
+    if (!window.AstrBotPluginView && !window.AstrBotPluginPage) {
+      throw new Error("bridge-sdk 已重新加载但仍未定义 bridge 对象" +
+        (errs.length ? "；页面错误: " + errs.join(" | ") : "（脚本执行出错）"));
+    }
+    bridge = window.AstrBotPluginView || window.AstrBotPluginPage;
+  }
+
+  function boot() {
+    ensureBridge().then(function () {
+      diag("");
+      bind();
+      var ready = bridge.ready();
+      var timeout = new Promise(function (_, reject) {
+        setTimeout(function () { reject(new Error("6 秒内未收到宿主 context（bridge.ready 未完成）")); }, 6000);
+      });
+      return Promise.race([ready, timeout]);
+    }).then(function () {
+      diag("");
+      refresh();
+    }).catch(function (e) {
+      diag((e && e.message) || String(e), true);
+      try { bind(); } catch (_) {}
+    });
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
+</script>
+</body>
+</html>
