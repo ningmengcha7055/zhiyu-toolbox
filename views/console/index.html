@@ -119,6 +119,22 @@
   .prob-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .prob-row input[type=number] { width: 110px; }
   .switch-inline { display: flex; align-items: center; gap: 10px; }
+
+  /* 保存/重置按钮悬浮：固定在页面右下角，不随页面滚动移动 */
+  .savebar {
+    position: fixed; right: 18px; bottom: 18px; z-index: 900;
+    margin: 0; padding: 10px 12px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+  }
+  body { padding-bottom: 78px; }
+
+  /* 悬浮按钮改圆形图标样式 */
+  .savebar button {
+    width: 46px; height: 46px; border-radius: 50%; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .savebar button svg { width: 20px; height: 20px; display: block; }
 </style>
 </head>
 <body>
@@ -210,9 +226,9 @@
   <details class="card" open>
     <summary><h2>通用设置</h2><span class="sum-note">3 组 19 项 · 改完点保存，立即生效并落盘</span></summary>
     <div id="form"></div>
-    <div class="actions">
-      <button id="btn-save" type="button" class="primary">保存配置</button>
-      <button id="btn-reset" type="button">放弃修改（重新读取）</button>
+    <div class="actions savebar">
+      <button id="btn-save" type="button" class="primary" title="保存配置" aria-label="保存配置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button>
+      <button id="btn-reset" type="button" title="放弃修改（重新读取）" aria-label="放弃修改（重新读取）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/></svg></button>
     </div>
   </details>
 </div>
