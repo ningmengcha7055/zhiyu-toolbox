@@ -15,7 +15,7 @@ desc: >-
   五、WebUI 控制台视图：在 AstrBot 面板的插件视图里打开「工具箱控制台」，
   可看实时状态、开关群聊总闸、直接修改全部配置。
   管理员身份按真实 QQ 号硬校验，非管理员发管理口令一律静默忽略。
-version: 1.11.0
+version: 1.11.1
 author: ningmengcha7055
 astrbot_version: ">=4.27.0"
 support_platforms:

@@ -42,8 +42,10 @@ DB_FILE = os.path.join(DATA, "data_v4.db")
 CFG_FILE = os.path.join(DATA, "cmd_config.json")
 LOG_FILE = os.path.join(DATA, "logs", "astrbot.log")
 CST = timezone(timedelta(hours=8))
-GROUP_REPLY_OFF_FLAG = os.path.join(DATA, "config", ".zhiyu_group_reply_off")
-GROUP_ALLOW_FILE = os.path.join(DATA, "config", ".zhiyu_group_allow")
+# 插件自有数据目录（市场审查要求：插件状态不得写进 data/config/）
+PLUGIN_DATA_DIR = os.path.join(DATA, "plugin_data", "astrbot_plugin_zhiyu_toolbox")
+GROUP_REPLY_OFF_FLAG = os.path.join(PLUGIN_DATA_DIR, ".zhiyu_group_reply_off")
+GROUP_ALLOW_FILE = os.path.join(PLUGIN_DATA_DIR, ".zhiyu_group_allow")
 FALLBACK_ADMINS = set()  # 兜底管理员：留空=完全跟随主配置
 
 MODEL_LABELS = {
@@ -831,12 +833,23 @@ def clean_outgoing_text(text: str, cfg: dict) -> tuple:
     "astrbot_plugin_zhiyu_toolbox",
     "大肥鱼",
     "知喻的多功能工具箱：状态查询、发言清洗、发送节流、群聊总闸，支持聊天口令直改，带 WebUI 控制台视图",
-    "1.11.0",
+    "1.11.1",
 )
 class ZhiyuToolbox(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
         self.config = config or {}
+        # 合规迁移：旧版把总闸/白名单标记写在 data/config/，按审查要求挪到 plugin_data/
+        try:
+            os.makedirs(PLUGIN_DATA_DIR, exist_ok=True)
+            for _old, _new in (
+                (os.path.join(DATA, "config", ".zhiyu_group_reply_off"), GROUP_REPLY_OFF_FLAG),
+                (os.path.join(DATA, "config", ".zhiyu_group_allow"), GROUP_ALLOW_FILE),
+            ):
+                if os.path.exists(_old) and not os.path.exists(_new):
+                    os.replace(_old, _new)
+        except Exception as exc:
+            logger.warning("[zhiyu_toolbox] 标记文件迁移失败: " + repr(exc))
         # 复述检测用的短期记忆：按会话记最近收到的原话、自己发出去的原话
         self._recent_src_text = {}
         self._recent_own_text = {}
@@ -1072,14 +1085,12 @@ class ZhiyuToolbox(Star):
 
     def _persist_config(self):
         # 把 self.config 当前值写回配置文件,改完重启也不丢。
+        # 统一走框架 save_config() 正规途径,不再手写 data/config 文件(市场审查要求)。
         try:
             if hasattr(self.config, "save_config"):
                 self.config.save_config()
-                return
-            path = os.path.join(DATA, "config", "astrbot_plugin_zhiyu_toolbox_config.json")
-            with open(path, "w", encoding="utf-8-sig") as fh:
-                json.dump(self.config, fh, ensure_ascii=False, indent=2)
-            logger.info("[zhiyu_toolbox] 配置已落盘(直接写文件)")
+            else:
+                logger.warning("[zhiyu_toolbox] 当前框架 config 不支持 save_config(),配置未落盘")
         except Exception as exc:
             logger.warning("[zhiyu_toolbox] 配置落盘失败: " + repr(exc))
 
@@ -1165,7 +1176,7 @@ class ZhiyuToolbox(Star):
             else:
                 gate3["provider_display"] = ""
             return {"status": "ok", "data": {
-                "version": "1.11.0",
+                "version": "1.11.1",
                 "gate_off": os.path.exists(GROUP_REPLY_OFF_FLAG),
                 "snapshot": snap,
                 "config": cfg,
